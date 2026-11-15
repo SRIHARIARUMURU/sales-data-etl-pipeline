@@ -1,6 +1,7 @@
-import pandas as pd
-from pathlib import Path
 import sqlite3
+from pathlib import Path
+
+import pandas as pd
 
 root_dir = Path(__file__).resolve().parents[1]
 data_path = root_dir / "data" / "sales_data.csv"
@@ -8,33 +9,44 @@ db_path = root_dir / "sales.db"
 
 
 def load_data():
+    if not data_path.exists():
+        raise FileNotFoundError(f"Data file not found: {data_path}")
+
     df = pd.read_csv(data_path)
     print(f"Loaded {len(df)} rows from {data_path}")
     return df
 
 
 def clean_data(df):
-    # Remove rows with missing critical values before string conversion
-    df = df.dropna(subset=["order_id", "order_date", "region", "product", "quantity", "unit_price"])
+    df = df.copy()
 
-    # Clean string columns
-    for col in df.select_dtypes(include=["object"]).columns:
-        df[col] = df[col].astype(str).str.strip()
+    string_columns = df.select_dtypes(include=["object", "string"]).columns
+    for col in string_columns:
+        df[col] = df[col].map(lambda value: value.strip() if isinstance(value, str) else value)
 
-    # Convert data types
+    critical_columns = [
+        "order_id",
+        "order_date",
+        "region",
+        "product",
+        "quantity",
+        "unit_price",
+    ]
+    df = df.dropna(subset=critical_columns)
+
     df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
     df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce")
     df["unit_price"] = pd.to_numeric(df["unit_price"], errors="coerce")
 
-    # Remove invalid rows after type conversion
     df = df.dropna(subset=["order_date", "quantity", "unit_price"])
 
-    # Add revenue column
     df["revenue"] = df["quantity"] * df["unit_price"]
 
-    # Standardize region/product names
-    df["region"] = df["region"].str.title()
-    df["product"] = df["product"].str.title()
+    for col in ["region", "product"]:
+        if col in df.columns:
+            df[col] = df[col].map(
+                lambda value: value.strip().title() if isinstance(value, str) else value
+            )
 
     print(f"Cleaned data rows: {len(df)}")
     return df
@@ -51,6 +63,8 @@ def main():
     df = load_data()
     df_cleaned = clean_data(df)
     load_to_sqlite(df_cleaned)
+
+
 
 if __name__ == "__main__":
     main()
