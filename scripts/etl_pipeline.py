@@ -52,6 +52,5 @@ def main():
     df_cleaned = clean_data(df)
     load_to_sqlite(df_cleaned)
 
-
 if __name__ == "__main__":
     main()
